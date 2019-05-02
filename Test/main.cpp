@@ -303,7 +303,7 @@ PLATFORM_NOINLINE static void TestLockPerf()
 
 //////////////////////////////////////////////////////////////////////////
 template <class TLock>
-static uint64_t TestLockSwitch(uint32_t waitTime = 250)
+static uint64_t TestLockWake(uint32_t waitTime = 250)
 {
 	TLock locker;
 	uint64_t unlockTime = 0;
@@ -324,39 +324,40 @@ static uint64_t TestLockSwitch(uint32_t waitTime = 250)
 	std::this_thread::sleep_for(std::chrono::milliseconds(waitTime));
 
 	locker.lock();
-	uint64_t switchTime = GetTickMicrosec() - unlockTime;
+	uint64_t wakeTime = GetTickMicrosec() - unlockTime;
 	locker.unlock();
 
 	thd.join();
 
-	return switchTime;
+	return wakeTime;
 }
 
 template <class TLock>
-PLATFORM_NOINLINE static void TestLockSwitchSeq(const char *name)
+PLATFORM_NOINLINE static void TestLockWakeSeq(const char *name)
 {
-	uint64_t result = TestLockSwitch<TLock>(250);
-	printf("[Switch] %s 1: %llu microsec\n", name, result);
-	result = TestLockSwitch<TLock>(480);
-	printf("[Switch] %s 2: %llu microsec\n", name, result);
-	result = TestLockSwitch<TLock>(495);
-	printf("[Switch] %s 3: %llu microsec\n", name, result);
+	uint64_t result = TestLockWake<TLock>(250);
+	printf("[Wake] %s 1: %llu microsec\n", name, result);
+	result = TestLockWake<TLock>(480);
+	printf("[Wake] %s 2: %llu microsec\n", name, result);
+	result = TestLockWake<TLock>(495);
+	printf("[Wake] %s 3: %llu microsec\n", name, result);
 }
 
-PLATFORM_NOINLINE static void TestLockSwitchPerf()
+PLATFORM_NOINLINE static void TestLockWakePerf()
 {
-	TestLockSwitchSeq<SRWLock>("SRWLock");
-	TestLockSwitchSeq<std::mutex>("std::mutex");
+	TestLockWakeSeq<SRWLock>("SRWLock");
+	TestLockWakeSeq<std::mutex>("std::mutex");
 
 #if !defined(PLATFORM_IS_IPHONE)
-	TestLockSwitchSeq<std::shared_mutex>("std::shared_mutex");
+	TestLockWakeSeq<std::shared_mutex>("std::shared_mutex");
 #endif
 }
 
 //////////////////////////////////////////////////////////////////////////
 int main()
 {
-	TestLockSwitchPerf();
 	TestLockPerf();
+	TestLockWakePerf();
+	SimpleTest();
 	return 0;
 }

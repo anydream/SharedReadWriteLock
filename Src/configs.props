@@ -6,6 +6,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <DisableSpecificWarnings>4068</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup />
