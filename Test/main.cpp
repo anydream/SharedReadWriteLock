@@ -1,4 +1,4 @@
-#include "SRWLock.hpp"
+﻿#include "SRWLock.hpp"
 #include "Utility.hpp"
 #include "DebugLog.hpp"
 #include <thread>

@@ -1,4 +1,4 @@
-#include "WaitEvent.hpp"
+ï»¿#include "WaitEvent.hpp"
 #include "DebugLog.hpp"
 
 //////////////////////////////////////////////////////////////////////////
@@ -96,7 +96,7 @@ void WaitEvent::WakeUp()
 #  pragma nounroll
 	while (syscall(SYS_futex, &Futex_, FUTEX_WAKE_PRIVATE, 1, 0, 0, 0) != 1)
 	{
-		// »½ÐÑÊ§°ÜÊ±ÍËÈÃ
+		// å”¤é†’å¤±è´¥æ—¶é€€è®©
 #  pragma nounroll
 		for (int i = 0; i < 64; ++i)
 			PLATFORM_YIELD;
