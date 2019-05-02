@@ -129,3 +129,7 @@
 #if !defined(VA_ARGS_EXPAND)
 #  define VA_ARGS_EXPAND(...) , ##__VA_ARGS__
 #endif
+
+#if !defined(ENABLE_IF)
+#  define ENABLE_IF(...)	std::enable_if_t<__VA_ARGS__>* = nullptr
+#endif
