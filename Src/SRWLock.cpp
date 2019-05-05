@@ -195,11 +195,11 @@ PLATFORM_NOINLINE static void WakeUpLock(size_t *pLockStatus, SRWStatus lastStat
 		else
 		{
 			// 尝试清除所有状态
-			SRWStatus newStatus = Atomic::CompareExchange<size_t>(pLockStatus, lastStatus.Value, 0);
-			if (lastStatus == newStatus)
+			SRWStatus currStatus = Atomic::CompareExchange<size_t>(pLockStatus, lastStatus.Value, 0);
+			if (lastStatus == currStatus)
 				break;
 
-			lastStatus = newStatus;
+			lastStatus = currStatus;
 		}
 	}
 
