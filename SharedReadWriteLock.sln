@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.136
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SharedReadWriteLock", "src\SharedReadWriteLock.vcxproj", "{243B7B28-2C95-4843-9A9E-91B68307F6AC}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Test", "Test\Test.vcxproj", "{78018EAF-25E4-4C21-83CD-94633C66D473}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SharedReadWriteLock", "src\SharedReadWriteLock.vcxproj", "{243B7B28-2C95-4843-9A9E-91B68307F6AC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
