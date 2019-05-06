@@ -22,11 +22,14 @@
     <ClInclude Include="Atomic.hpp" />
     <ClInclude Include="DebugLog.hpp" />
     <ClInclude Include="Predefines.hpp" />
+    <ClInclude Include="SRWCondVar.hpp" />
+    <ClInclude Include="SRWInternals.hpp" />
     <ClInclude Include="SRWLock.hpp" />
     <ClInclude Include="Utility.hpp" />
     <ClInclude Include="WaitEvent.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="SRWCondVar.cpp" />
     <ClCompile Include="SRWLock.cpp" />
     <ClCompile Include="Utility.cpp" />
     <ClCompile Include="WaitEvent.cpp" />
@@ -36,7 +39,7 @@
     <ProjectGuid>{243B7B28-2C95-4843-9A9E-91B68307F6AC}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>SharedReadWriteLock</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

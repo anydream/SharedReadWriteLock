@@ -1,9 +1,12 @@
 ﻿#include "SRWLock.hpp"
+#include "SRWCondVar.hpp"
 #include "Utility.hpp"
 #include "DebugLog.hpp"
 #include <thread>
 #include <mutex>
 #include <shared_mutex>
+#include <functional>
+#include <windows.h>
 
 //////////////////////////////////////////////////////////////////////////
 PLATFORM_NOINLINE static void SimpleTest()
@@ -75,7 +78,7 @@ PLATFORM_NOINLINE static void SimpleTest()
 		lk.unlock();
 
 		printf("Delay: %ums\n",
-		       clock() - stt);
+			clock() - stt);
 
 		thd.join();
 
@@ -100,7 +103,7 @@ PLATFORM_NOINLINE static void SimpleTest()
 		lk.unlock_shared();
 
 		printf("Delay: %ums\n",
-		       clock() - stt);
+			clock() - stt);
 
 		thd.join();
 
@@ -125,7 +128,7 @@ PLATFORM_NOINLINE static void SimpleTest()
 		lk.unlock();
 
 		printf("Delay: %ums\n",
-		       clock() - stt);
+			clock() - stt);
 
 		thd.join();
 
@@ -168,10 +171,10 @@ PLATFORM_NOINLINE static void SimpleTest()
 		thd2.join();
 
 		printf("Delay: %ums\n",
-		       clock() - stt);
+			clock() - stt);
 
 		printf("2 Thread Exclusive: %d (%d, %d)\n",
-		       count, c1, c2);
+			count, c1, c2);
 	}
 
 	{
@@ -210,10 +213,10 @@ PLATFORM_NOINLINE static void SimpleTest()
 		thd2.join();
 
 		printf("Delay: %ums\n",
-		       clock() - stt);
+			clock() - stt);
 
 		printf("2 Thread Shared: %d (%d, %d)\n",
-		       count, c1, c2);
+			count, c1, c2);
 	}
 }
 
@@ -251,7 +254,7 @@ static void TestLockRace(const char *name, uint32_t loops)
 
 	t = GetTickMicrosec() - t;
 	printf("[Race]   %s: %u, %gms\n",
-	       name, sum, t / 1000.0);
+		name, sum, t / 1000.0);
 	Assert(sum == loops * 2);
 }
 
@@ -271,7 +274,7 @@ static void TestLockSingle(const char *name, uint32_t loops)
 
 	t = GetTickMicrosec() - t;
 	printf("[Single] %s: %u, %gms\n",
-	       name, sum, t / 1000.0);
+		name, sum, t / 1000.0);
 	Assert(sum == loops);
 }
 
@@ -354,8 +357,44 @@ PLATFORM_NOINLINE static void TestLockWakePerf()
 }
 
 //////////////////////////////////////////////////////////////////////////
+PLATFORM_NOINLINE static void TestCondVar()
+{
+	bool isExit = false;
+	SRWCondVar condVar{};
+	SRWLock lock;
+	uint64_t wakeTime = 0;
+
+	std::thread thd([&]()
+	{
+		LockGuard<SRWLock> lk(lock);
+
+		condVar.wait(lk, [&]()
+		{
+			return isExit;
+		});
+
+		uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
+		printf("WakeElapsed: %llu microsec\n", wakeElapsed);
+	});
+
+	Sleep(1000);
+
+	lock.lock();
+	isExit = true;
+	lock.unlock();
+
+	wakeTime = GetTickMicrosec();
+	condVar.notify_one();
+	//WakeCondVariable(&condVar);
+	//WakeAllCondVariable(&condVar);
+
+	thd.join();
+}
+
+//////////////////////////////////////////////////////////////////////////
 int main()
 {
+	TestCondVar();
 	TestLockPerf();
 	TestLockWakePerf();
 	SimpleTest();
