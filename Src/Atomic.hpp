@@ -10,7 +10,13 @@ namespace Atomic
 	{
 		return __sync_val_compare_and_swap(pDest, cmpVal, newVal);
 	}
-	
+
+	template <class T>
+	T Exchange(T *pDest, T val)
+	{
+		return __atomic_exchange_n(pDest, val, __ATOMIC_ACQ_REL);
+	}
+
 	template <class T>
 	T IncrementFetch(T *pDest)
 	{
@@ -221,6 +227,33 @@ namespace Atomic
 	inline uint64_t CompareExchange(uint64_t *pDest, uint64_t cmpVal, uint64_t newVal)
 	{
 		return _InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(pDest), newVal, cmpVal);
+	}
+
+	template <class T>
+	T Exchange(T *pDest, T val) = delete;
+
+	template <>
+	inline uint8_t Exchange(uint8_t *pDest, uint8_t val)
+	{
+		return _InterlockedExchange8(reinterpret_cast<volatile char*>(pDest), val);
+	}
+
+	template <>
+	inline uint16_t Exchange(uint16_t *pDest, uint16_t val)
+	{
+		return _InterlockedExchange16(reinterpret_cast<volatile short*>(pDest), val);
+	}
+
+	template <>
+	inline uint32_t Exchange(uint32_t *pDest, uint32_t val)
+	{
+		return _InterlockedExchange(reinterpret_cast<volatile long*>(pDest), val);
+	}
+
+	template <>
+	inline uint64_t Exchange(uint64_t *pDest, uint64_t val)
+	{
+		return _InterlockedExchange64(reinterpret_cast<volatile long long*>(pDest), val);
 	}
 
 	template <class T>
