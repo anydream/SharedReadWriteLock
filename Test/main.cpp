@@ -357,36 +357,118 @@ PLATFORM_NOINLINE static void TestLockWakePerf()
 }
 
 //////////////////////////////////////////////////////////////////////////
+PLATFORM_NOINLINE static void SimpleTestCondVar()
+{
+	SRWCondVar condVar;
+	SRWLock lock;
+
+	{
+		LockGuard<SRWLock> lk(lock);
+		condVar.notify_one();
+	}
+	{
+		LockGuard<SRWLock> lk(lock);
+		auto stt = GetTickMicrosec();
+		condVar.wait_for(lk, 500000);
+		auto dlt = GetTickMicrosec() - stt;
+		Assert(dlt > 400000);
+	}
+
+	{
+		LockGuard<SRWLock> lk(lock);
+		condVar.notify_all();
+	}
+	{
+		LockGuard<SRWLock> lk(lock);
+		auto stt = GetTickMicrosec();
+		condVar.wait_for(lk, 500000);
+		auto dlt = GetTickMicrosec() - stt;
+		Assert(dlt > 400000);
+	}
+
+	{
+		LockGuard<SRWLock> lk(lock, true);
+		condVar.notify_one();
+	}
+	{
+		LockGuard<SRWLock> lk(lock, true);
+		auto stt = GetTickMicrosec();
+		condVar.wait_for(lk, 500000, true);
+		auto dlt = GetTickMicrosec() - stt;
+		Assert(dlt > 400000);
+	}
+
+	{
+		LockGuard<SRWLock> lk(lock, true);
+		condVar.notify_all();
+	}
+	{
+		LockGuard<SRWLock> lk(lock, true);
+		auto stt = GetTickMicrosec();
+		condVar.wait_for(lk, 500000, true);
+		auto dlt = GetTickMicrosec() - stt;
+		Assert(dlt > 400000);
+	}
+}
+
 PLATFORM_NOINLINE static void TestCondVar()
 {
 	bool isExit = false;
-	SRWCondVar condVar{};
+
+	SRWCondVar condVar;
 	SRWLock lock;
 	uint64_t wakeTime = 0;
 
 	std::thread thd([&]()
 	{
-		LockGuard<SRWLock> lk(lock);
-
-		condVar.wait(lk, [&]()
 		{
-			return isExit;
-		});
+			LockGuard<SRWLock> lk(lock);
 
-		uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
-		printf("WakeElapsed: %llu microsec\n", wakeElapsed);
+			condVar.wait(lk, [&]()
+			{
+				return isExit;
+			});
+
+			uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
+			printf("wait Elapsed: %llu microsec\n", wakeElapsed);
+		}
 	});
 
-	Sleep(1000);
+	std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-	lock.lock();
-	isExit = true;
-	lock.unlock();
+	{
+		LockGuard<SRWLock> lk(lock);
+		isExit = true;
+		wakeTime = GetTickMicrosec();
+		condVar.notify_one();
+	}
 
-	wakeTime = GetTickMicrosec();
-	condVar.notify_one();
-	//WakeCondVariable(&condVar);
-	//WakeAllCondVariable(&condVar);
+	thd.join();
+}
+
+PLATFORM_NOINLINE static void TestCondVar2()
+{
+	SRWCondVar condVar;
+	SRWLock lock;
+	uint64_t wakeTime = 0;
+
+	std::thread thd([&]()
+	{
+		{
+			LockGuard<SRWLock> lk(lock);
+			condVar.wait_for(lk, 1000000);
+		}
+		uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
+		printf("wait_for Elapsed: %llu microsec\n", wakeElapsed);
+	});
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	{
+		LockGuard<SRWLock> lk(lock);
+		wakeTime = GetTickMicrosec();
+		// BUG
+		condVar.notify_one();
+	}
 
 	thd.join();
 }
@@ -394,7 +476,9 @@ PLATFORM_NOINLINE static void TestCondVar()
 //////////////////////////////////////////////////////////////////////////
 int main()
 {
+	TestCondVar2();
 	TestCondVar();
+	SimpleTestCondVar();
 	TestLockPerf();
 	TestLockWakePerf();
 	SimpleTest();
