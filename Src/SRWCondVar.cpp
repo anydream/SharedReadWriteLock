@@ -237,7 +237,7 @@ static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 	return result;
 }
 
-static void SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t timeOut, bool isShared)
+static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t timeOut, bool isShared)
 {
 	SRWStatus newStatus;
 	alignas(16) SRWStackNode stackNode;
@@ -297,11 +297,11 @@ static void SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 	{
 		if (!WakeSingle(pCondStatus, &stackNode))
 		{
-			// TODO
 			do
 			{
 				stackNode.WaitMicrosec();
 			} while (!(stackNode.Flags & FLAG_WAKING));
+			isTimeOut = false;
 		}
 	}
 
@@ -309,6 +309,8 @@ static void SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 		pSRWLock->lock_shared();
 	else
 		pSRWLock->lock();
+
+	return isTimeOut;
 }
 
 // PASS
@@ -395,7 +397,7 @@ void SRWCondVar::notify_all()
 	WakeAllCondVariable(&CondStatus_);
 }
 
-void SRWCondVar::wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut, bool isShared)
+bool SRWCondVar::wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut, bool isShared)
 {
-	SleepCondVariable(&CondStatus_, lock.mutex(), timeOut, isShared);
+	return SleepCondVariable(&CondStatus_, lock.mutex(), timeOut, isShared);
 }

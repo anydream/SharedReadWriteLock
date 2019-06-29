@@ -365,49 +365,29 @@ PLATFORM_NOINLINE static void SimpleTestCondVar()
 	{
 		LockGuard<SRWLock> lk(lock);
 		condVar.notify_one();
-	}
-	{
-		LockGuard<SRWLock> lk(lock);
-		auto stt = GetTickMicrosec();
-		condVar.wait_for(lk, 500000);
-		auto dlt = GetTickMicrosec() - stt;
-		Assert(dlt > 400000);
-	}
-
-	{
-		LockGuard<SRWLock> lk(lock);
 		condVar.notify_all();
 	}
 	{
 		LockGuard<SRWLock> lk(lock);
 		auto stt = GetTickMicrosec();
-		condVar.wait_for(lk, 500000);
+		bool isTimeOut = condVar.wait_for(lk, 500000);
 		auto dlt = GetTickMicrosec() - stt;
 		Assert(dlt > 400000);
+		Assert(isTimeOut);
 	}
 
 	{
 		LockGuard<SRWLock> lk(lock, true);
 		condVar.notify_one();
-	}
-	{
-		LockGuard<SRWLock> lk(lock, true);
-		auto stt = GetTickMicrosec();
-		condVar.wait_for(lk, 500000, true);
-		auto dlt = GetTickMicrosec() - stt;
-		Assert(dlt > 400000);
-	}
-
-	{
-		LockGuard<SRWLock> lk(lock, true);
 		condVar.notify_all();
 	}
 	{
 		LockGuard<SRWLock> lk(lock, true);
 		auto stt = GetTickMicrosec();
-		condVar.wait_for(lk, 500000, true);
+		bool isTimeOut = condVar.wait_for(lk, 500000, true);
 		auto dlt = GetTickMicrosec() - stt;
 		Assert(dlt > 400000);
+		Assert(isTimeOut);
 	}
 }
 
@@ -456,7 +436,8 @@ PLATFORM_NOINLINE static void TestCondVar2()
 	{
 		{
 			LockGuard<SRWLock> lk(lock);
-			condVar.wait_for(lk, 1000000);
+			bool isTimeOut = condVar.wait_for(lk, 4000000);
+			Assert(!isTimeOut);
 		}
 		uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
 		printf("wait_for Elapsed: %llu microsec\n", wakeElapsed);
@@ -466,7 +447,7 @@ PLATFORM_NOINLINE static void TestCondVar2()
 	{
 		LockGuard<SRWLock> lk(lock);
 		wakeTime = GetTickMicrosec();
-		// BUG
+
 		condVar.notify_one();
 	}
 
