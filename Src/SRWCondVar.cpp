@@ -120,11 +120,10 @@ static void OptimizeWaitList(size_t *pCondStatus, SRWStatus lastStatus)
 	}
 }
 
-// PASS
 static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 {
-	SRWStatus newStatus;
 	SRWStatus lastStatus = *pCondStatus;
+	SRWStatus newStatus;
 
 	for (;;)
 	{
@@ -140,18 +139,19 @@ static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 		}
 		else
 		{
-			SRWStatus oldStatus = lastStatus;
 			newStatus = lastStatus;
 			newStatus.MultiShared = 1;
-			lastStatus = Atomic::CompareExchange<size_t>(pCondStatus, lastStatus.Value, newStatus.Value);
 
+			SRWStatus oldStatus = lastStatus;
+			lastStatus = Atomic::CompareExchange<size_t>(pCondStatus, lastStatus.Value, newStatus.Value);
 			if (lastStatus == oldStatus)
 				break;
 		}
 	}
 
 	lastStatus = newStatus;
-	SRWStackNode *pCurr = lastStatus.WaitNode();
+
+	SRWStackNode *pCurr = newStatus.WaitNode();
 	SRWStackNode *pLastWait = pCurr;
 	SRWStackNode *pLast = nullptr;
 	bool result = false;
@@ -160,79 +160,65 @@ static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 	{
 		do
 		{
-			if (pCurr == pWaitNode)
-			{
-				if (pLast)
-				{
-					// TODO
-					Atomic::FetchBitSet(&pCurr->Flags, BIT_WAKING);
+			SRWStackNode *pBack = pCurr->Back;
 
-					result = true;
-					pCurr = pCurr->Back;
-					pLast->Back = pCurr;
-					if (pCurr)
-						pCurr->Next = pLast;
-				}
-				else
-				{
-					SRWStackNode *pBack = pCurr->Back;
-					newStatus = reinterpret_cast<size_t>(pBack);
-					if (newStatus.Value)
-						newStatus.ReplaceFlagPart(lastStatus.Value);
-
-					SRWStatus oldStatus = lastStatus;
-					lastStatus = Atomic::CompareExchange<size_t>(pCondStatus, lastStatus.Value, newStatus.Value);
-					if (lastStatus == oldStatus)
-					{
-						// TODO
-						Atomic::FetchBitSet(&pCurr->Flags, BIT_WAKING);
-
-						lastStatus = newStatus;
-						if (!pBack)
-							return true;
-						result = true;
-					}
-					else
-					{
-						newStatus = lastStatus;
-					}
-
-					pCurr = lastStatus.WaitNode();
-					pLastWait = pCurr;
-					pLast = nullptr;
-				}
-			}
-			else
+			if (pCurr != pWaitNode)
 			{
 				pCurr->Next = pLast;
 				pLast = pCurr;
-				pCurr = pCurr->Back;
+				pCurr = pBack;
+				continue;
 			}
+
+			if (pLast)
+			{
+				Atomic::FetchBitSet(&pCurr->Flags, BIT_WAKING);
+				result = true;
+
+				pLast->Back = pBack;
+				if (pBack)
+					pBack->Next = pLast;
+
+				pCurr = pBack;
+				continue;
+			}
+
+			newStatus = reinterpret_cast<size_t>(pBack);
+			if (newStatus.Value)
+				newStatus.ReplaceFlagPart(lastStatus.Value);
+
+			SRWStatus oldStatus = lastStatus;
+			lastStatus = Atomic::CompareExchange<size_t>(pCondStatus, lastStatus.Value, newStatus.Value);
+			if (lastStatus == oldStatus)
+			{
+				Atomic::FetchBitSet(&pCurr->Flags, BIT_WAKING);
+				result = true;
+
+				lastStatus = newStatus;
+				if (!pBack)
+					return true;
+			}
+			else
+				newStatus = lastStatus;
+
+			pCurr = lastStatus.WaitNode();
+			pLastWait = pCurr;
+			pLast = nullptr;
 		} while (pCurr);
 
 		if (pLastWait)
 			pLastWait->Notify = pLast;
 
 		if (!result)
-		{
-			// TODO
 			Atomic::FetchBitSet(&pWaitNode->Flags, BIT_SPINNING);
-		}
 	}
 	else
-	{
-		// TODO
 		Atomic::FetchBitSet(&pWaitNode->Flags, BIT_SPINNING);
-	}
 
 	DoWakeCondVariable(pCondStatus, newStatus, 0);
 
-	// TODO
 	if (!result)
-	{
-		if (!Atomic::FetchBitClear(&pWaitNode->Flags, BIT_SPINNING))
-			return true;
-	}
+		result = !Atomic::FetchBitClear(&pWaitNode->Flags, BIT_SPINNING);
 
 	return result;
 }
@@ -314,7 +300,6 @@ static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 	return isTimeOut;
 }
 
-// PASS
 static void WakeCondVariable(size_t *pCondStatus)
 {
 	SRWStatus lastStatus = *pCondStatus;
