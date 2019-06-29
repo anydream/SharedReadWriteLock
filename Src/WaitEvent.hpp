@@ -13,7 +13,9 @@
 class WaitEvent
 {
 public:
-	void WaitMicrosec(uint64_t microsecs = -1);
+	// 等待唤醒, 返回是否超时
+	bool WaitMicrosec(uint64_t microsecs = -1);
+	// 唤醒
 	void WakeUp();
 
 private:

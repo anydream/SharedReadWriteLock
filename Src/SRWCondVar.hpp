@@ -13,7 +13,7 @@ public:
 	void notify_one();
 	void notify_all();
 
-	void wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut = -1, bool isShared = false);
+	void wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut, bool isShared = false);
 
 	void wait(LockGuard<SRWLock> &lock, bool isShared = false)
 	{
@@ -24,7 +24,7 @@ public:
 	void wait(LockGuard<SRWLock> &lock, Pred pred, bool isShared = false)
 	{
 		while (!pred())
-			wait_for(lock, -1, isShared);
+			wait(lock);
 	}
 
 private:

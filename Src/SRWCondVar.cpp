@@ -237,7 +237,6 @@ static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 	return result;
 }
 
-// PASS
 static void SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t timeOut, bool isShared)
 {
 	SRWStatus newStatus;
@@ -290,17 +289,9 @@ static void SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 
 	bool isTimeOut = false;
 	if (Atomic::FetchBitClear(&stackNode.Flags, BIT_SPINNING))
-	{
-		stackNode.WaitMicrosec(timeOut);
-
-		if (timeOut != -1)
-			isTimeOut = true;
-	}
+		isTimeOut = stackNode.WaitMicrosec(timeOut);
 	else
-	{
-		// TODO
 		Atomic::FetchBitSet(&stackNode.Flags, BIT_WAKING);
-	}
 
 	if (isTimeOut || !(stackNode.Flags & FLAG_WAKING))
 	{
