@@ -24,7 +24,7 @@ public:
 	void wait(LockGuard<SRWLock> &lock, Pred pred, bool isShared = false)
 	{
 		while (!pred())
-			wait(lock);
+			wait_for(lock, -1, isShared);
 	}
 
 private:

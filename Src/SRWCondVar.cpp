@@ -301,6 +301,7 @@ static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 			{
 				stackNode.WaitMicrosec();
 			} while (!(stackNode.Flags & FLAG_WAKING));
+
 			isTimeOut = false;
 		}
 	}
@@ -346,7 +347,6 @@ static void WakeCondVariable(size_t *pCondStatus)
 	}
 }
 
-// PASS
 static void WakeAllCondVariable(size_t *pCondStatus)
 {
 	SRWStatus lastStatus = *pCondStatus;
@@ -370,7 +370,6 @@ static void WakeAllCondVariable(size_t *pCondStatus)
 				{
 					SRWStackNode *pBack = pWaitNode->Back;
 
-					// TODO
 					Atomic::FetchBitSet(&pWaitNode->Flags, BIT_WAKING);
 
 					if (!Atomic::FetchBitClear(&pWaitNode->Flags, BIT_SPINNING))
