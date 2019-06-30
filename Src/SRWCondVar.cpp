@@ -2,14 +2,13 @@
 #include "SRWInternals.hpp"
 
 //////////////////////////////////////////////////////////////////////////
-// PASS
 static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
 {
 	SRWStatus lastStatus = *pSRWLock->native_handle();
 	uint32_t backoffCount = 0;
 
 	while (lastStatus.Locked &&
-		((pStackNode->Flags & FLAG_LOCKED) || lastStatus.Spinning || !lastStatus.SharedCount))
+		((pStackNode->Flags & FLAG_LOCKED) || lastStatus.Spinning || !lastStatus.WaitNode()))
 	{
 		if (QueueStackNode<true>(pSRWLock->native_handle(), pStackNode, lastStatus))
 			return true;
@@ -22,7 +21,6 @@ static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
 	return false;
 }
 
-// PASS
 static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32_t addCounter)
 {
 	SRWStatus oldStatus;
@@ -56,15 +54,14 @@ static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32
 			pNotify->Back = nullptr;
 			ppCurrNotify = &pNotify->Back;
 			pWaitNode->Notify = pNext;
-			pNext->Back = nullptr;
 			pNotify = pNext;
+			pNext->Back = nullptr;
 		}
 
 		if (total <= counter)
 		{
 			oldStatus = lastStatus;
 			lastStatus = Atomic::CompareExchange<size_t>(pCondStatus, lastStatus.Value, reinterpret_cast<size_t>(pWaitNode));
-
 			if (lastStatus == oldStatus)
 				break;
 		}
@@ -72,12 +69,10 @@ static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32
 		{
 			oldStatus = lastStatus;
 			lastStatus = Atomic::CompareExchange<size_t>(pCondStatus, lastStatus.Value, 0);
-
 			if (lastStatus == oldStatus)
 			{
 				*ppCurrNotify = pNotify;
 				pNotify->Back = nullptr;
-
 				break;
 			}
 		}
@@ -99,7 +94,6 @@ static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32
 	}
 }
 
-// PASS
 static void OptimizeWaitList(size_t *pCondStatus, SRWStatus lastStatus)
 {
 	for (;;)
@@ -226,7 +220,7 @@ static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t timeOut, bool isShared)
 {
 	SRWStatus newStatus;
-	alignas(16) SRWStackNode stackNode;
+	alignas(16) SRWStackNode stackNode{};
 
 	SRWStatus lastStatus = *pCondStatus;
 	stackNode.Next = nullptr;
