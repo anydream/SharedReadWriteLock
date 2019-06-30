@@ -489,83 +489,8 @@ struct AvgCounter
 template <class TCondVar, class TLock, class TGuard, class TSleep>
 PLATFORM_NOINLINE static void TestCondVarSwitch(const char *name, TSleep funcSleep)
 {
-	struct Context
-	{
-		TCondVar CondVar_;
-		TLock Lock_;
-		uint64_t Data_ = 0;
-		bool IsPresent_ = false;
+	const uint32_t threadCount = std::thread::hardware_concurrency();
 
-		uint64_t WaitData()
-		{
-			TGuard lk(Lock_);
-			CondVar_.wait(lk, [this]() { return IsPresent_; });
-			IsPresent_ = false;
-			uint64_t ret = Data_;
-			Data_ = 0;
-			return ret;
-		}
-
-		void NotifyData(uint64_t d)
-		{
-			TGuard lk(Lock_);
-			IsPresent_ = true;
-			Data_ = d;
-			CondVar_.notify_one();
-		}
-	};
-
-	bool isExit = false;
-	Context ctx1, ctx2;
-	std::thread thd1([&]()
-	{
-		while (!isExit)
-		{
-			uint64_t data = ctx1.WaitData();
-			if (data)
-				ctx2.NotifyData(data);
-			else
-				Assert(isExit);
-		}
-	});
-
-	AvgCounter ac;
-	std::thread thd2([&]()
-	{
-		while (!isExit)
-		{
-			funcSleep();
-
-			uint64_t ts = GetTickMicrosec();
-			ctx1.NotifyData(ts);
-			uint64_t reply = ctx2.WaitData();
-			if (reply)
-			{
-				Assert(reply == ts);
-				ac.AddData(static_cast<double>(GetTickMicrosec() - ts));
-			}
-			else
-				Assert(isExit);
-		}
-	});
-
-	std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
-	isExit = true;
-	ctx1.NotifyData(0);
-	ctx2.NotifyData(0);
-
-	thd1.join();
-	thd2.join();
-
-	printf("[CondVarSwitch] %s: ", name);
-	ac.Print();
-	puts("");
-}
-
-template <class TCondVar, class TLock, class TGuard, class TSleep>
-PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, size_t threadCount, TSleep funcSleep)
-{
 	struct Context
 	{
 		TCondVar CondVar_;
@@ -592,7 +517,111 @@ PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, size_t thread
 				CondVar_.notify_one();
 		}
 
-		void NotifyDataList(std::vector<uint64_t> dlst, bool isAll)
+		void NotifyDataList(const std::vector<uint64_t> &dlst, bool isAll)
+		{
+			TGuard lk(Lock_);
+			DataList_.insert(DataList_.end(), dlst.begin(), dlst.end());
+
+			if (isAll)
+				CondVar_.notify_all();
+			else
+				CondVar_.notify_one();
+		}
+	};
+
+	bool isExit = false;
+
+	Context ctxProducer, ctxCustomer;
+	auto funcCustomer = [&]()
+	{
+		while (!isExit)
+		{
+			uint64_t data = ctxCustomer.WaitData();
+			if (data)
+				ctxProducer.NotifyData(data, false);
+			else
+				Assert(isExit);
+		}
+	};
+
+	AvgCounter ac;
+	auto funcProducer = [&]()
+	{
+		while (!isExit)
+		{
+			funcSleep();
+
+			uint64_t ts = GetTickMicrosec();
+			ctxCustomer.NotifyData(ts, false);
+
+			uint64_t reply = ctxProducer.WaitData();
+			if (reply)
+			{
+				AssertDo(reply == ts, printf("reply: %llu, ts: %llu\n", reply, ts));
+				ac.AddData(static_cast<double>(GetTickMicrosec() - ts));
+			}
+			else
+			{
+				Assert(isExit);
+			}
+		}
+	};
+
+	std::vector<std::thread> thdList(threadCount);
+	for (auto &thd : thdList)
+		thd = std::thread(funcCustomer);
+
+	std::thread thdProducer(funcProducer);
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+	isExit = true;
+	ctxProducer.NotifyData(0, true);
+
+	std::vector<uint64_t> tsList(threadCount);
+	ctxCustomer.NotifyDataList(tsList, true);
+
+	for (auto &thd : thdList)
+		thd.join();
+	thdProducer.join();
+
+	printf("[CondVarSwitch] %s: ", name);
+	ac.Print();
+	puts("");
+}
+
+template <class TCondVar, class TLock, class TGuard, class TSleep>
+PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, TSleep funcSleep)
+{
+	const uint32_t threadCount = std::thread::hardware_concurrency();
+
+	struct Context
+	{
+		TCondVar CondVar_;
+		TLock Lock_;
+		std::deque<uint64_t> DataList_;
+
+		uint64_t WaitData()
+		{
+			TGuard lk(Lock_);
+			CondVar_.wait(lk, [this]() { return !DataList_.empty(); });
+			uint64_t ret = DataList_.front();
+			DataList_.pop_front();
+			return ret;
+		}
+
+		void NotifyData(uint64_t d, bool isAll)
+		{
+			TGuard lk(Lock_);
+			DataList_.push_back(d);
+
+			if (isAll)
+				CondVar_.notify_all();
+			else
+				CondVar_.notify_one();
+		}
+
+		void NotifyDataList(const std::vector<uint64_t> &dlst, bool isAll)
 		{
 			TGuard lk(Lock_);
 			DataList_.insert(DataList_.end(), dlst.begin(), dlst.end());
@@ -677,21 +706,6 @@ PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, size_t thread
 //////////////////////////////////////////////////////////////////////////
 int main()
 {
-	TestThunderingHerd<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", 8, []()
-	{
-	});
-	TestThunderingHerd<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var", 8, []()
-	{
-	});
-	TestThunderingHerd<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(10)", 8, []()
-	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-	});
-	TestThunderingHerd<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(10)", 8, []()
-	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-	});
-
 	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
 	{
 	});
@@ -711,6 +725,21 @@ int main()
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	});
 	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(10)", []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	});
+
+	TestThunderingHerd<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
+	{
+	});
+	TestThunderingHerd<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var", []()
+	{
+	});
+	TestThunderingHerd<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(10)", []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	});
+	TestThunderingHerd<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(10)", []()
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	});
