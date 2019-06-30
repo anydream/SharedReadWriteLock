@@ -78,7 +78,7 @@ PLATFORM_NOINLINE static void SimpleTest()
 		lk.unlock();
 
 		printf("Delay: %ums\n",
-			clock() - stt);
+		       clock() - stt);
 
 		thd.join();
 
@@ -103,7 +103,7 @@ PLATFORM_NOINLINE static void SimpleTest()
 		lk.unlock_shared();
 
 		printf("Delay: %ums\n",
-			clock() - stt);
+		       clock() - stt);
 
 		thd.join();
 
@@ -128,7 +128,7 @@ PLATFORM_NOINLINE static void SimpleTest()
 		lk.unlock();
 
 		printf("Delay: %ums\n",
-			clock() - stt);
+		       clock() - stt);
 
 		thd.join();
 
@@ -171,10 +171,10 @@ PLATFORM_NOINLINE static void SimpleTest()
 		thd2.join();
 
 		printf("Delay: %ums\n",
-			clock() - stt);
+		       clock() - stt);
 
 		printf("2 Thread Exclusive: %d (%d, %d)\n",
-			count, c1, c2);
+		       count, c1, c2);
 	}
 
 	{
@@ -213,10 +213,10 @@ PLATFORM_NOINLINE static void SimpleTest()
 		thd2.join();
 
 		printf("Delay: %ums\n",
-			clock() - stt);
+		       clock() - stt);
 
 		printf("2 Thread Shared: %d (%d, %d)\n",
-			count, c1, c2);
+		       count, c1, c2);
 	}
 }
 
@@ -254,7 +254,7 @@ static void TestLockRace(const char *name, uint32_t loops)
 
 	t = GetTickMicrosec() - t;
 	printf("[Race]   %s: %u, %gms\n",
-		name, sum, t / 1000.0);
+	       name, sum, t / 1000.0);
 	Assert(sum == loops * 2);
 }
 
@@ -274,7 +274,7 @@ static void TestLockSingle(const char *name, uint32_t loops)
 
 	t = GetTickMicrosec() - t;
 	printf("[Single] %s: %u, %gms\n",
-		name, sum, t / 1000.0);
+	       name, sum, t / 1000.0);
 	Assert(sum == loops);
 }
 
@@ -339,11 +339,11 @@ template <class TLock>
 PLATFORM_NOINLINE static void TestLockWakeSeq(const char *name)
 {
 	uint64_t result = TestLockWake<TLock>(250);
-	printf("[Wake] %s 1: %llu microsec\n", name, result);
+	printf("[Wake] %s 1: %lluus\n", name, result);
 	result = TestLockWake<TLock>(480);
-	printf("[Wake] %s 2: %llu microsec\n", name, result);
+	printf("[Wake] %s 2: %lluus\n", name, result);
 	result = TestLockWake<TLock>(495);
-	printf("[Wake] %s 3: %llu microsec\n", name, result);
+	printf("[Wake] %s 3: %lluus\n", name, result);
 }
 
 PLATFORM_NOINLINE static void TestLockWakePerf()
@@ -410,7 +410,7 @@ PLATFORM_NOINLINE static void TestCondVar()
 			});
 
 			uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
-			printf("wait Elapsed: %llu microsec\n", wakeElapsed);
+			printf("wait Elapsed: %lluus\n", wakeElapsed);
 		}
 	});
 
@@ -440,7 +440,7 @@ PLATFORM_NOINLINE static void TestCondVar2()
 			Assert(!isTimeOut);
 		}
 		uint64_t wakeElapsed = GetTickMicrosec() - wakeTime;
-		printf("wait_for Elapsed: %llu microsec\n", wakeElapsed);
+		printf("wait_for Elapsed: %lluus\n", wakeElapsed);
 	});
 
 	std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -454,9 +454,137 @@ PLATFORM_NOINLINE static void TestCondVar2()
 	thd.join();
 }
 
+struct AvgCounter
+{
+	double Total_ = 0;
+	double Min_ = 0;
+	double Max_ = 0;
+	size_t Count_ = 0;
+
+	void AddData(double d)
+	{
+		Total_ += d;
+
+		if (Count_)
+		{
+			Min_ = (std::min)(Min_, d);
+			Max_ = (std::max)(Max_, d);
+		}
+		else
+		{
+			Min_ = Max_ = d;
+		}
+
+		++Count_;
+	}
+
+	void Print() const
+	{
+		printf("Min:%gus, Max:%gus, Avg:%gus, Cnt:%llu",
+		       Min_, Max_, Total_ / Count_, Count_);
+	}
+};
+
+template <class TCondVar, class TLock, class TGuard, class TSleep>
+PLATFORM_NOINLINE static void TestCondVarSwitch(const char *name, TSleep funcSleep)
+{
+	struct Context
+	{
+		TCondVar CondVar_;
+		TLock Lock_;
+		uint64_t Data_ = 0;
+		bool IsPresent_ = false;
+
+		uint64_t WaitData()
+		{
+			TGuard lk(Lock_);
+			CondVar_.wait(lk, [this]() { return IsPresent_; });
+			IsPresent_ = false;
+			uint64_t ret = Data_;
+			Data_ = 0;
+			return ret;
+		}
+
+		void NotifyData(uint64_t d)
+		{
+			TGuard lk(Lock_);
+			IsPresent_ = true;
+			Data_ = d;
+			CondVar_.notify_one();
+		}
+	};
+
+	bool isExit = false;
+	Context ctx1, ctx2;
+	std::thread thd1([&]()
+	{
+		while (!isExit)
+		{
+			uint64_t data = ctx1.WaitData();
+			if (data)
+				ctx2.NotifyData(data);
+			else
+				Assert(isExit);
+		}
+	});
+
+	AvgCounter ac;
+	std::thread thd2([&]()
+	{
+		while (!isExit)
+		{
+			funcSleep();
+
+			uint64_t ts = GetTickMicrosec();
+			ctx1.NotifyData(ts);
+			ts = ctx2.WaitData();
+			if (ts)
+				ac.AddData(GetTickMicrosec() - ts);
+			else
+				Assert(isExit);
+		}
+	});
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+	isExit = true;
+	ctx1.NotifyData(0);
+	ctx2.NotifyData(0);
+
+	thd1.join();
+	thd2.join();
+
+	printf("[CondVarSwitch] %s: ", name);
+	ac.Print();
+	puts("");
+}
+
 //////////////////////////////////////////////////////////////////////////
 int main()
 {
+	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
+	{
+	});
+	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var", []()
+	{
+	});
+	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(0)", []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(0));
+	});
+	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(0)", []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(0));
+	});
+	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(10)", []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	});
+	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(10)", []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	});
+
 	TestCondVar2();
 	TestCondVar();
 	SimpleTestCondVar();
