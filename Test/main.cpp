@@ -4,9 +4,10 @@
 #include "DebugLog.hpp"
 #include <thread>
 #include <mutex>
+#include <vector>
+#include <deque>
 #include <shared_mutex>
 #include <functional>
-#include <windows.h>
 
 //////////////////////////////////////////////////////////////////////////
 PLATFORM_NOINLINE static void SimpleTest()
@@ -537,9 +538,12 @@ PLATFORM_NOINLINE static void TestCondVarSwitch(const char *name, TSleep funcSle
 
 			uint64_t ts = GetTickMicrosec();
 			ctx1.NotifyData(ts);
-			ts = ctx2.WaitData();
-			if (ts)
-				ac.AddData(GetTickMicrosec() - ts);
+			uint64_t reply = ctx2.WaitData();
+			if (reply)
+			{
+				Assert(reply == ts);
+				ac.AddData(static_cast<double>(GetTickMicrosec() - ts));
+			}
 			else
 				Assert(isExit);
 		}
@@ -559,9 +563,135 @@ PLATFORM_NOINLINE static void TestCondVarSwitch(const char *name, TSleep funcSle
 	puts("");
 }
 
+template <class TCondVar, class TLock, class TGuard, class TSleep>
+PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, size_t threadCount, TSleep funcSleep)
+{
+	struct Context
+	{
+		TCondVar CondVar_;
+		TLock Lock_;
+		std::deque<uint64_t> DataList_;
+
+		uint64_t WaitData()
+		{
+			TGuard lk(Lock_);
+			CondVar_.wait(lk, [this]() { return !DataList_.empty(); });
+			uint64_t ret = DataList_.front();
+			DataList_.pop_front();
+			return ret;
+		}
+
+		void NotifyData(uint64_t d, bool isAll)
+		{
+			TGuard lk(Lock_);
+			DataList_.push_back(d);
+
+			if (isAll)
+				CondVar_.notify_all();
+			else
+				CondVar_.notify_one();
+		}
+
+		void NotifyDataList(std::vector<uint64_t> dlst, bool isAll)
+		{
+			TGuard lk(Lock_);
+			DataList_.insert(DataList_.end(), dlst.begin(), dlst.end());
+
+			if (isAll)
+				CondVar_.notify_all();
+			else
+				CondVar_.notify_one();
+		}
+	};
+
+	bool isExit = false;
+
+	Context ctxProducer, ctxCustomer;
+	auto funcCustomer = [&]()
+	{
+		while (!isExit)
+		{
+			uint64_t data = ctxCustomer.WaitData();
+			if (data)
+				ctxProducer.NotifyData(data, false);
+			else
+				Assert(isExit);
+		}
+	};
+
+	AvgCounter ac;
+	auto funcProducer = [&]()
+	{
+		while (!isExit)
+		{
+			funcSleep();
+
+			uint64_t ts = GetTickMicrosec();
+
+			std::vector<uint64_t> tsList(threadCount);
+			for (auto &i : tsList)
+				i = ts;
+			ctxCustomer.NotifyDataList(tsList, true);
+
+			for (size_t i = 0; i < threadCount; ++i)
+			{
+				uint64_t reply = ctxProducer.WaitData();
+				if (reply)
+				{
+					AssertDo(reply == ts, printf("reply: %llu, ts: %llu\n", reply, ts));
+				}
+				else
+				{
+					Assert(isExit);
+					return;
+				}
+			}
+
+			ac.AddData(static_cast<double>(GetTickMicrosec() - ts));
+		}
+	};
+
+	std::vector<std::thread> thdList(threadCount);
+	for (auto &thd : thdList)
+		thd = std::thread(funcCustomer);
+
+	std::thread thdProducer(funcProducer);
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+	isExit = true;
+	ctxProducer.NotifyData(0, true);
+
+	std::vector<uint64_t> tsList(threadCount);
+	ctxCustomer.NotifyDataList(tsList, true);
+
+	for (auto &thd : thdList)
+		thd.join();
+	thdProducer.join();
+
+	printf("[ThunderingHerd] %s: ", name);
+	ac.Print();
+	puts("");
+}
+
 //////////////////////////////////////////////////////////////////////////
 int main()
 {
+	TestThunderingHerd<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", 8, []()
+	{
+	});
+	TestThunderingHerd<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var", 8, []()
+	{
+	});
+	TestThunderingHerd<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(10)", 8, []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	});
+	TestThunderingHerd<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(10)", 8, []()
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	});
+
 	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
 	{
 	});
