@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Atomic.hpp"
 #include "WaitEvent.hpp"
@@ -6,22 +6,22 @@
 #include "DebugLog.hpp"
 
 //////////////////////////////////////////////////////////////////////////
-// ×´Ì¬Î»Ë³Ğò
+// çŠ¶æ€ä½é¡ºåº
 enum SRWBits
 {
-	// Ëø¶¨ÖĞ. ¶ÀÕ¼»ò¹²ÏíËø¶¨
+	// é”å®šä¸­. ç‹¬å æˆ–å…±äº«é”å®š
 	BIT_LOCKED = 0,
-	// ×ÔĞıÖĞ. ÕıÔÚµÈ´ı
+	// è‡ªæ—‹ä¸­. æ­£åœ¨ç­‰å¾…
 	BIT_SPINNING = 1,
-	// »½ĞÑÖĞ»òÓÅ»¯µÈ´ıÁ´±í. Ö»ÓĞ´æÔÚ×ÔĞıÎ»Ê±²ÅÄÜÉèÖÃ
+	// å”¤é†’ä¸­æˆ–ä¼˜åŒ–ç­‰å¾…é“¾è¡¨. åªæœ‰å­˜åœ¨è‡ªæ—‹ä½æ—¶æ‰èƒ½è®¾ç½®
 	BIT_WAKING = 2,
-	// ¶àÖØ¹²ÏíÕß
+	// å¤šé‡å…±äº«è€…
 	BIT_MULTI_SHARED = 3,
-	// ¹²Ïí¼ÆÊıÎ»
+	// å…±äº«è®¡æ•°ä½
 	BIT_SHARED = 4,
 };
 
-// ×´Ì¬Î»±ê¼Ç
+// çŠ¶æ€ä½æ ‡è®°
 enum SRWFlags
 {
 	FLAG_LOCKED = 1 << BIT_LOCKED,
@@ -32,24 +32,22 @@ enum SRWFlags
 	FLAG_ALL = FLAG_MULTI_SHARED | FLAG_WAKING | FLAG_SPINNING | FLAG_LOCKED
 };
 
-// Õ»½Úµã. ËøÕùÓÃÊ±, µÈ´ıÕßÊ¹ÓÃÁ´±í´®Áª¸÷¸öÏß³ÌÕ»ÉÏµÄ½Úµã
+// æ ˆèŠ‚ç‚¹. é”äº‰ç”¨æ—¶, ç­‰å¾…è€…ä½¿ç”¨é“¾è¡¨ä¸²è”å„ä¸ªçº¿ç¨‹æ ˆä¸Šçš„èŠ‚ç‚¹
 struct SRWStackNode : WaitEvent
 {
-	// ÉÏÒ»½Úµã
+	// ä¸Šä¸€èŠ‚ç‚¹
 	SRWStackNode *Back;
-	// Í¨Öª½Úµã
+	// é€šçŸ¥èŠ‚ç‚¹
 	SRWStackNode *Notify;
-	// ÏÂÒ»½Úµã
+	// ä¸‹ä¸€èŠ‚ç‚¹
 	SRWStackNode *Next;
-	// ¹²Ïí¼ÆÊı
+	// å…±äº«è®¡æ•°
 	uint32_t SharedCount;
-	// Ïß³Ì±ê¼Ç, ÖµÎª FLAG_LOCKED, FLAG_SPINNING »ò FLAG_WAKING
+	// çº¿ç¨‹æ ‡è®°, å€¼ä¸º FLAG_LOCKED, FLAG_SPINNING æˆ– FLAG_WAKING
 	uint32_t Flags;
-	// Ìõ¼ş±äÁ¿µÈ´ıµÄÉÏÒ»¸öËø
-	SRWLock *LastLock;
 };
 
-// Ëø×´Ì¬
+// é”çŠ¶æ€
 struct SRWStatus
 {
 	union
@@ -137,13 +135,13 @@ static void Backoff(uint32_t *pCount)
 	}
 	else
 	{
-		// TODO: µ¥ºËĞÄÖ±½Ó·µ»Ø
-		// ÉèÖÃ³õÊ¼´ÎÊı
+		// TODO: å•æ ¸å¿ƒç›´æ¥è¿”å›
+		// è®¾ç½®åˆå§‹æ¬¡æ•°
 		count = 64;
 	}
 
 	*pCount = count;
-	// Éú³ÉËæ»úÍËÈÃ´ÎÊı
+	// ç”Ÿæˆéšæœºé€€è®©æ¬¡æ•°
 	count += (count - 1) & RandomValue();
 	//count = count * 10 / _KUSER_SHARED_DATA.CyclesPerYield
 
@@ -153,7 +151,7 @@ static void Backoff(uint32_t *pCount)
 }
 
 //////////////////////////////////////////////////////////////////////////
-// ²éÕÒÍ¨Öª½Úµã
+// æŸ¥æ‰¾é€šçŸ¥èŠ‚ç‚¹
 static SRWStackNode* FindNotifyNode(SRWStackNode *pWaitNode)
 {
 	SRWStackNode *pNotify = pWaitNode->Notify;
@@ -172,7 +170,7 @@ static SRWStackNode* FindNotifyNode(SRWStackNode *pWaitNode)
 	return pNotify;
 }
 
-// ²éÕÒÍ¨Öª½Úµã²¢Á¬½Ó
+// æŸ¥æ‰¾é€šçŸ¥èŠ‚ç‚¹å¹¶è¿æ¥
 static SRWStackNode* UpdateNotifyNode(SRWStackNode *pWaitNode)
 {
 	SRWStackNode *pNotify = FindNotifyNode(pWaitNode);
@@ -180,7 +178,7 @@ static SRWStackNode* UpdateNotifyNode(SRWStackNode *pWaitNode)
 	return pNotify;
 }
 
-// ³¢ÊÔÇå³ı»½ĞÑ×´Ì¬
+// å°è¯•æ¸…é™¤å”¤é†’çŠ¶æ€
 static bool TryClearWaking(size_t *pLockStatus, SRWStatus &lastStatus)
 {
 	SRWStatus newStatus = lastStatus.Value - FLAG_WAKING;
@@ -204,7 +202,7 @@ PLATFORM_NOINLINE static void WakeUpLock(size_t *pLockStatus, SRWStatus lastStat
 
 		if (!isForce)
 		{
-			// Ëø¶¨×´Ì¬³¢ÊÔÇå³ı»½ĞÑ±ê¼Ç
+			// é”å®šçŠ¶æ€å°è¯•æ¸…é™¤å”¤é†’æ ‡è®°
 			while (lastStatus.Locked)
 			{
 				AssertDebug(lastStatus.Spinning);
@@ -213,7 +211,7 @@ PLATFORM_NOINLINE static void WakeUpLock(size_t *pLockStatus, SRWStatus lastStat
 			}
 		}
 
-		// Ñ°ÕÒĞèÒªÍ¨ÖªµÄ½Úµã
+		// å¯»æ‰¾éœ€è¦é€šçŸ¥çš„èŠ‚ç‚¹
 		SRWStackNode *pWaitNode = lastStatus.WaitNode();
 		pNotify = UpdateNotifyNode(pWaitNode);
 
@@ -227,20 +225,20 @@ PLATFORM_NOINLINE static void WakeUpLock(size_t *pLockStatus, SRWStatus lastStat
 
 			if (SRWStackNode *pNext = pNotify->Next)
 			{
-				// Èç¹ûÍ¨Öª´æÔÚÏÂÒ»¸ö½Úµã, ²¢ÇÒÍ¨Öª°üº¬Ëø×´Ì¬, Ôò¸üĞÂÏÂÒ»Í¨Öª½Úµã²¢»½ĞÑµ±Ç°½Úµã
+				// å¦‚æœé€šçŸ¥å­˜åœ¨ä¸‹ä¸€ä¸ªèŠ‚ç‚¹, å¹¶ä¸”é€šçŸ¥åŒ…å«é”çŠ¶æ€, åˆ™æ›´æ–°ä¸‹ä¸€é€šçŸ¥èŠ‚ç‚¹å¹¶å”¤é†’å½“å‰èŠ‚ç‚¹
 				pWaitNode->Notify = pNext;
 				pNotify->Next = nullptr;
 
 				AssertDebug(pWaitNode != pNotify);
 				AssertDebug(SRWStatus(*pLockStatus).Spinning);
 
-				// ³¢ÊÔÇå³ı»½ĞÑ±ê¼Ç
+				// å°è¯•æ¸…é™¤å”¤é†’æ ‡è®°
 				Atomic::FetchAnd<size_t>(pLockStatus, ~FLAG_WAKING);
 				break;
 			}
 		}
 
-		// ¸üĞÂ×´Ì¬
+		// æ›´æ–°çŠ¶æ€
 		SRWStatus currStatus = Atomic::CompareExchange<size_t>(
 			pLockStatus,
 			lastStatus.Value,
@@ -253,18 +251,18 @@ PLATFORM_NOINLINE static void WakeUpLock(size_t *pLockStatus, SRWStatus lastStat
 		lastStatus = currStatus;
 	}
 
-	// »½ĞÑĞèÒªÍ¨ÖªµÄ½Úµã
+	// å”¤é†’éœ€è¦é€šçŸ¥çš„èŠ‚ç‚¹
 	do
 	{
-		// ÕıÏò±éÀúÍ¨Öª½ÚµãÁ´±í
+		// æ­£å‘éå†é€šçŸ¥èŠ‚ç‚¹é“¾è¡¨
 		SRWStackNode *pNext = pNotify->Next;
 
 		Atomic::FetchBitSet(&pNotify->Flags, BIT_WAKING);
 
-		// ³¢ÊÔÇå³ı×ÔĞı±ê¼Ç
+		// å°è¯•æ¸…é™¤è‡ªæ—‹æ ‡è®°
 		if (!Atomic::FetchBitClear(&pNotify->Flags, BIT_SPINNING))
 		{
-			// Èç¹ûÖ®Ç°²»ÔÚ×ÔĞıÔò»½ĞÑ
+			// å¦‚æœä¹‹å‰ä¸åœ¨è‡ªæ—‹åˆ™å”¤é†’
 			pNotify->WakeUp();
 		}
 
@@ -274,18 +272,18 @@ PLATFORM_NOINLINE static void WakeUpLock(size_t *pLockStatus, SRWStatus lastStat
 
 static void OptimizeLockList(size_t *pLockStatus, SRWStatus lastStatus)
 {
-	// Ëø¶¨×´Ì¬Ê±Ñ­»·
+	// é”å®šçŠ¶æ€æ—¶å¾ªç¯
 	while (lastStatus.Locked)
 	{
-		// ¸üĞÂÍ¨Öª½Úµã
+		// æ›´æ–°é€šçŸ¥èŠ‚ç‚¹
 		SRWStackNode *pWaitNode = lastStatus.WaitNode();
 		UpdateNotifyNode(pWaitNode);
 
-		// ³¢ÊÔÇå³ı»½ĞÑ±ê¼Ç
+		// å°è¯•æ¸…é™¤å”¤é†’æ ‡è®°
 		if (TryClearWaking(pLockStatus, lastStatus))
 			return;
 	}
-	// Èç¹ûÊÇÎŞËø¶¨×´Ì¬Ôò»½ĞÑ
+	// å¦‚æœæ˜¯æ— é”å®šçŠ¶æ€åˆ™å”¤é†’
 	WakeUpLock(pLockStatus, lastStatus);
 }
 
@@ -298,28 +296,28 @@ static bool QueueStackNode(size_t *pLockStatus, SRWStackNode *pStackNode, SRWSta
 
 	if (lastStatus.Spinning)
 	{
-		// ÆäËûÏß³ÌÕıÔÚ×ÔĞı
+		// å…¶ä»–çº¿ç¨‹æ­£åœ¨è‡ªæ—‹
 		pStackNode->SharedCount = -1;
 		pStackNode->Notify = nullptr;
-		// ×÷Îªµ±Ç°Ïß³ÌµÄÉÏÒ»¸ö½Úµã¹Ò½Ó
+		// ä½œä¸ºå½“å‰çº¿ç¨‹çš„ä¸Šä¸€ä¸ªèŠ‚ç‚¹æŒ‚æ¥
 		pStackNode->Back = lastStatus.WaitNode();
-		// ¼Ì³Ğ¶àÖØ¹²Ïí±ê¼Ç, ²¢ÉèÖÃ»½ĞÑ, ×ÔĞıºÍËø¶¨ºÍ±ê¼Ç
+		// ç»§æ‰¿å¤šé‡å…±äº«æ ‡è®°, å¹¶è®¾ç½®å”¤é†’, è‡ªæ—‹å’Œé”å®šå’Œæ ‡è®°
 		newStatus = reinterpret_cast<size_t>(pStackNode) | (lastStatus.Value & FLAG_MULTI_SHARED) | FLAG_WAKING | FLAG_SPINNING | FLAG_LOCKED;
 
-		// ²»°üº¬»½ĞÑ±ê¼ÇµÄÇé¿öĞèÒª³¢ÊÔÓÅ»¯Á´±í
+		// ä¸åŒ…å«å”¤é†’æ ‡è®°çš„æƒ…å†µéœ€è¦å°è¯•ä¼˜åŒ–é“¾è¡¨
 		if (!lastStatus.Waking)
 			isOptimize = true;
 	}
 	else
 	{
-		// °Ñµ±Ç°Ïß³Ì×÷ÎªÏÂÒ»¸öÍ¨Öª½Úµã
+		// æŠŠå½“å‰çº¿ç¨‹ä½œä¸ºä¸‹ä¸€ä¸ªé€šçŸ¥èŠ‚ç‚¹
 		pStackNode->Notify = pStackNode;
 		newStatus = reinterpret_cast<size_t>(pStackNode) | FLAG_SPINNING | FLAG_LOCKED;
 
 		if (IsExclusive)
 		{
 			pStackNode->SharedCount = lastStatus.SharedCount;
-			// ¹²Ïí¸öÊı´óÓÚ 1 µÄÇé¿öĞèÒªÉèÖÃ¶àÖØ¹²Ïí±ê¼Ç
+			// å…±äº«ä¸ªæ•°å¤§äº 1 çš„æƒ…å†µéœ€è¦è®¾ç½®å¤šé‡å…±äº«æ ‡è®°
 			if (pStackNode->SharedCount > 1)
 				newStatus.MultiShared = 1;
 			else if (!pStackNode->SharedCount)
@@ -335,10 +333,10 @@ static bool QueueStackNode(size_t *pLockStatus, SRWStackNode *pStackNode, SRWSta
 	AssertDebug(newStatus.Locked);
 	AssertDebug(lastStatus.Locked);
 
-	// ³¢ÊÔ¸üĞÂËø×´Ì¬
+	// å°è¯•æ›´æ–°é”çŠ¶æ€
 	if (lastStatus == Atomic::CompareExchange<size_t>(pLockStatus, lastStatus.Value, newStatus.Value))
 	{
-		// ¸üĞÂ³É¹¦, ÓÅ»¯Á´±í
+		// æ›´æ–°æˆåŠŸ, ä¼˜åŒ–é“¾è¡¨
 		if (isOptimize)
 			OptimizeLockList(pLockStatus, newStatus);
 		return true;

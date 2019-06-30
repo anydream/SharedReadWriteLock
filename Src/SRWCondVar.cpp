@@ -1,8 +1,15 @@
-#include "SRWCondVar.hpp"
+ï»¿#include "SRWCondVar.hpp"
 #include "SRWInternals.hpp"
 
 //////////////////////////////////////////////////////////////////////////
-static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
+struct CVStackNode : SRWStackNode
+{
+	// æ¡ä»¶å˜é‡ç­‰å¾…çš„ä¸Šä¸€ä¸ªé”
+	SRWLock *LastLock;
+};
+
+//////////////////////////////////////////////////////////////////////////
+PLATFORM_NOINLINE static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
 {
 	SRWStatus lastStatus = *pSRWLock->native_handle();
 	uint32_t backoffCount = 0;
@@ -13,7 +20,7 @@ static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
 		if (QueueStackNode<true>(pSRWLock->native_handle(), pStackNode, lastStatus))
 			return true;
 
-		// ´æÔÚ¾ºÕùÊ±Ö÷¶¯±ÜÈÃ
+		// å­˜åœ¨ç«žäº‰æ—¶ä¸»åŠ¨é¿è®©
 		Backoff(&backoffCount);
 		lastStatus = *pSRWLock->native_handle();
 	}
@@ -21,7 +28,7 @@ static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
 	return false;
 }
 
-static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32_t addCounter)
+PLATFORM_NOINLINE static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32_t addCounter)
 {
 	SRWStatus oldStatus;
 
@@ -83,8 +90,9 @@ static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32
 		SRWStackNode *pBack = pCurrNotify->Back;
 		if (!Atomic::FetchBitClear(&pCurrNotify->Flags, BIT_SPINNING))
 		{
-			if (!pCurrNotify->LastLock ||
-				!QueueStackNodeToSRWLock(pCurrNotify, pCurrNotify->LastLock))
+			SRWLock *pLastLock = static_cast<CVStackNode*>(pCurrNotify)->LastLock;
+			if (!pLastLock ||
+				!QueueStackNodeToSRWLock(pCurrNotify, pLastLock))
 			{
 				Atomic::FetchBitSet(&pCurrNotify->Flags, BIT_WAKING);
 				pCurrNotify->WakeUp();
@@ -94,7 +102,7 @@ static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus lastStatus, uint32
 	}
 }
 
-static void OptimizeWaitList(size_t *pCondStatus, SRWStatus lastStatus)
+PLATFORM_NOINLINE static void OptimizeWaitList(size_t *pCondStatus, SRWStatus lastStatus)
 {
 	for (;;)
 	{
@@ -114,7 +122,7 @@ static void OptimizeWaitList(size_t *pCondStatus, SRWStatus lastStatus)
 	}
 }
 
-static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
+PLATFORM_NOINLINE static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 {
 	SRWStatus lastStatus = *pCondStatus;
 	SRWStatus newStatus;
@@ -220,7 +228,7 @@ static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWaitNode)
 static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t timeOut, bool isShared)
 {
 	SRWStatus newStatus;
-	alignas(16) SRWStackNode stackNode{};
+	alignas(16) CVStackNode stackNode{};
 
 	SRWStatus lastStatus = *pCondStatus;
 	stackNode.Next = nullptr;
