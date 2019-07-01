@@ -95,7 +95,7 @@ bool WaitEvent::WaitMicrosec(uint64_t microsecs)
 	}
 	else
 	{
-		auto status = CondVar_.wait_for(lk, std::chrono::microseconds(microsecs), [this] { return IsWakeUp_; });
+		auto status = CondVar_.wait_for(lk, std::chrono::microseconds(microsecs));
 		IsWakeUp_ = false;
 		return status == std::cv_status::timeout;
 	}
