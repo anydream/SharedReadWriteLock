@@ -250,11 +250,13 @@ namespace Atomic
 		return _InterlockedExchange(reinterpret_cast<volatile long*>(pDest), val);
 	}
 
+#  if defined(PLATFORM_IS_64BIT)
 	template <>
 	inline uint64_t Exchange(uint64_t *pDest, uint64_t val)
 	{
 		return _InterlockedExchange64(reinterpret_cast<volatile long long*>(pDest), val);
 	}
+#endif
 
 	template <class T>
 	T IncrementFetch(T *pDest) = delete;
@@ -395,14 +397,14 @@ namespace Atomic
 	template <>
 	inline bool FetchBitSet(uint32_t *pDest, uint32_t bitPos)
 	{
-		return _interlockedbittestandset(reinterpret_cast<volatile long*>(pDest), bitPos);
+		return !!_interlockedbittestandset(reinterpret_cast<volatile long*>(pDest), bitPos);
 	}
 
 #  if defined(PLATFORM_IS_64BIT)
 	template <>
 	inline bool FetchBitSet(uint64_t *pDest, uint32_t bitPos)
 	{
-		return _interlockedbittestandset64(reinterpret_cast<volatile long long*>(pDest), bitPos);
+		return !!_interlockedbittestandset64(reinterpret_cast<volatile long long*>(pDest), bitPos);
 	}
 #  endif
 
@@ -412,14 +414,14 @@ namespace Atomic
 	template <>
 	inline bool FetchBitClear(uint32_t *pDest, uint32_t bitPos)
 	{
-		return _interlockedbittestandreset(reinterpret_cast<volatile long*>(pDest), bitPos);
+		return !!_interlockedbittestandreset(reinterpret_cast<volatile long*>(pDest), bitPos);
 	}
 
 #  if defined(PLATFORM_IS_64BIT)
 	template <>
 	inline bool FetchBitClear(uint64_t *pDest, uint32_t bitPos)
 	{
-		return _interlockedbittestandreset64(reinterpret_cast<volatile long long*>(pDest), bitPos);
+		return !!_interlockedbittestandreset64(reinterpret_cast<volatile long long*>(pDest), bitPos);
 	}
 #  endif
 #endif
