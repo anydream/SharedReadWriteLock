@@ -3,6 +3,8 @@
 #include "Predefines.hpp"
 
 //////////////////////////////////////////////////////////////////////////
+void SRWLock_Init();
+
 bool SRWLock_TryLock(size_t *pLockStatus);
 void SRWLock_Lock(size_t *pLockStatus);
 void SRWLock_Unlock(size_t *pLockStatus);

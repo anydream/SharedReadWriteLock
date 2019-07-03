@@ -267,13 +267,7 @@ bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut,
 	if (lastStatus.MultiShared != newStatus.MultiShared)
 		OptimizeWaitList(pCondStatus, newStatus);
 
-#pragma nounroll
-	for (uint32_t spinCount = g_SRWSpinCount; spinCount; --spinCount)
-	{
-		if (!(static_cast<volatile const uint32_t&>(stackNode.Flags) & FLAG_SPINNING))
-			break;
-		PLATFORM_YIELD;
-	}
+	Spinning(stackNode);
 
 	bool isTimeOut = false;
 	if (Atomic::FetchBitClear(&stackNode.Flags, BIT_SPINNING))

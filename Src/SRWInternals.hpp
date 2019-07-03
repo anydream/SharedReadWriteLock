@@ -123,32 +123,8 @@ struct SRWStatus
 };
 
 //////////////////////////////////////////////////////////////////////////
-static uint32_t g_SRWSpinCount = 1024;
-
-static void Backoff(uint32_t *pCount)
-{
-	uint32_t count = *pCount;
-	if (count)
-	{
-		if (count < 0x1FFF)
-			count *= 2;
-	}
-	else
-	{
-		// TODO: 单核心直接返回
-		// 设置初始次数
-		count = 64;
-	}
-
-	*pCount = count;
-	// 生成随机退让次数
-	count += (count - 1) & RandomValue();
-	//count = count * 10 / _KUSER_SHARED_DATA.CyclesPerYield
-
-#pragma nounroll
-	while (count--)
-		PLATFORM_YIELD;
-}
+void Backoff(uint32_t *pCount);
+void Spinning(SRWStackNode &stackNode);
 
 //////////////////////////////////////////////////////////////////////////
 // 查找通知节点

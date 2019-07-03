@@ -1,6 +1,77 @@
 ﻿#include "SRWLock.hpp"
 #include "SRWInternals.hpp"
 
+#if defined(PLATFORM_GNUC_LIKE)
+#  include <cpuid.h>
+#endif
+
+//////////////////////////////////////////////////////////////////////////
+static uint32_t g_CyclesPerYield = 10;
+
+void SRWLock_Init()
+{
+#if defined(PLATFORM_ARCH_X86)
+#  if defined(PLATFORM_GNUC_LIKE)
+	uint32_t cpuInfo[4];
+	__get_cpuid(0, &cpuInfo[0], &cpuInfo[1], &cpuInfo[2], &cpuInfo[3]);
+#  else
+	int cpuInfo[4];
+	__cpuid(cpuInfo, 0);
+#  endif
+	if (cpuInfo[0] == 0x16)
+	{
+		// Skylake 修改了 pause 指令的耗时
+		g_CyclesPerYield = 140;
+		return;
+	}
+#endif
+	g_CyclesPerYield = 10;
+}
+
+static struct Init
+{
+	Init()
+	{
+		SRWLock_Init();
+	}
+} g_Init;
+
+//////////////////////////////////////////////////////////////////////////
+PLATFORM_NOINLINE void Backoff(uint32_t *pCount)
+{
+	uint32_t count = *pCount;
+	if (count)
+	{
+		if (count < 0x1FFF)
+			count *= 2;
+	}
+	else
+	{
+		// TODO: 单核心直接返回
+		// 设置初始次数
+		count = 64;
+	}
+
+	*pCount = count;
+	// 生成随机退让次数
+	count = 10 * ((count - 1) & RandomValue() + count) / g_CyclesPerYield;
+
+#pragma nounroll
+	while (count--)
+		PLATFORM_YIELD;
+}
+
+void Spinning(SRWStackNode &stackNode)
+{
+#pragma nounroll
+	for (uint32_t spinCount = 8820 / g_CyclesPerYield; spinCount; --spinCount)
+	{
+		if (!(static_cast<volatile const uint32_t&>(stackNode.Flags) & FLAG_SPINNING))
+			break;
+		PLATFORM_YIELD;
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 template <bool IsExclusive>
 PLATFORM_NOINLINE static bool TryWaiting(size_t *pLockStatus, SRWStackNode &stackNode, SRWStatus lastStatus)
@@ -15,13 +86,7 @@ PLATFORM_NOINLINE static bool TryWaiting(size_t *pLockStatus, SRWStackNode &stac
 	if (QueueStackNode<IsExclusive>(pLockStatus, &stackNode, lastStatus))
 	{
 		// 自旋一定次数再睡眠
-#pragma nounroll
-		for (uint32_t spinCount = g_SRWSpinCount; spinCount; --spinCount)
-		{
-			if (!(static_cast<volatile const uint32_t&>(stackNode.Flags) & FLAG_SPINNING))
-				break;
-			PLATFORM_YIELD;
-		}
+		Spinning(stackNode);
 
 		// 成功清除自旋状态时进入睡眠状态
 		if (Atomic::FetchBitClear(&stackNode.Flags, BIT_SPINNING))
