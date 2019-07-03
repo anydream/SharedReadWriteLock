@@ -49,50 +49,50 @@ static bool TryLockShared(size_t *pLockStatus, SRWStatus lastStatus)
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool SRWLock::try_lock()
+bool SRWLock_TryLock(size_t *pLockStatus)
 {
 	// 尝试设置锁定位
-	return !Atomic::FetchBitSet(&LockStatus_, BIT_LOCKED);
+	return !Atomic::FetchBitSet(pLockStatus, BIT_LOCKED);
 }
 
-void SRWLock::lock()
+void SRWLock_Lock(size_t *pLockStatus)
 {
 	// 成功获得锁时立即返回
-	if (PLATFORM_LIKELY(try_lock()))
+	if (PLATFORM_LIKELY(SRWLock_TryLock(pLockStatus)))
 		return;
 
 	uint32_t backoffCount = 0;
 	alignas(16) SRWStackNode stackNode{};
 
-	SRWStatus lastStatus = LockStatus_;
+	SRWStatus lastStatus = *pLockStatus;
 
 	for (;;)
 	{
 		if (lastStatus.Locked)
 		{
 			// 已锁定时进入等待模式
-			if (TryWaiting<true>(&LockStatus_, stackNode, lastStatus))
+			if (TryWaiting<true>(pLockStatus, stackNode, lastStatus))
 			{
-				lastStatus = LockStatus_;
+				lastStatus = *pLockStatus;
 				continue;
 			}
 		}
 		else
 		{
 			// 尝试加锁, 成功后立即返回
-			if (try_lock())
+			if (SRWLock_TryLock(pLockStatus))
 				return;
 		}
 
 		// 存在竞争时主动避让
 		Backoff(&backoffCount);
-		lastStatus = LockStatus_;
+		lastStatus = *pLockStatus;
 	}
 }
 
-void SRWLock::unlock()
+void SRWLock_Unlock(size_t *pLockStatus)
 {
-	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(&LockStatus_, FLAG_LOCKED, 0);
+	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(pLockStatus, FLAG_LOCKED, 0);
 	if (PLATFORM_LIKELY(lastStatus == FLAG_LOCKED))
 		return;
 
@@ -108,11 +108,11 @@ void SRWLock::unlock()
 			isWake = true;
 		}
 
-		SRWStatus currStatus = Atomic::CompareExchange<size_t>(&LockStatus_, lastStatus.Value, newStatus.Value);
+		SRWStatus currStatus = Atomic::CompareExchange<size_t>(pLockStatus, lastStatus.Value, newStatus.Value);
 		if (currStatus == lastStatus)
 		{
 			if (isWake)
-				WakeUpLock(&LockStatus_, newStatus);
+				WakeUpLock(pLockStatus, newStatus);
 			return;
 		}
 
@@ -120,10 +120,10 @@ void SRWLock::unlock()
 	}
 }
 
-bool SRWLock::try_lock_shared()
+bool SRWLock_TryLockShared(size_t *pLockStatus)
 {
 	// 未锁定时可以立即锁定
-	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(&LockStatus_, 0, FLAG_SHARED | FLAG_LOCKED);
+	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(pLockStatus, 0, FLAG_SHARED | FLAG_LOCKED);
 	if (PLATFORM_LIKELY(lastStatus == 0))
 		return true;
 
@@ -136,19 +136,19 @@ bool SRWLock::try_lock_shared()
 			return false;
 
 		// 尝试加锁
-		if (TryLockShared(&LockStatus_, lastStatus))
+		if (TryLockShared(pLockStatus, lastStatus))
 			return true;
 
 		// 存在竞争时主动避让
 		Backoff(&backoffCount);
-		lastStatus = LockStatus_;
+		lastStatus = *pLockStatus;
 	}
 }
 
-void SRWLock::lock_shared()
+void SRWLock_LockShared(size_t *pLockStatus)
 {
 	// 未锁定时可以立即锁定
-	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(&LockStatus_, 0, FLAG_SHARED | FLAG_LOCKED);
+	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(pLockStatus, 0, FLAG_SHARED | FLAG_LOCKED);
 	if (PLATFORM_LIKELY(lastStatus == 0))
 		return;
 
@@ -160,28 +160,28 @@ void SRWLock::lock_shared()
 		if (lastStatus.Locked && (lastStatus.Spinning || !lastStatus.SharedCount))
 		{
 			// 已锁定, 且正在自旋或者非共享锁定时, 进入等待模式
-			if (TryWaiting<false>(&LockStatus_, stackNode, lastStatus))
+			if (TryWaiting<false>(pLockStatus, stackNode, lastStatus))
 			{
-				lastStatus = LockStatus_;
+				lastStatus = *pLockStatus;
 				continue;
 			}
 		}
 		else
 		{
 			// 尝试加锁, 成功后立即返回
-			if (TryLockShared(&LockStatus_, lastStatus))
+			if (TryLockShared(pLockStatus, lastStatus))
 				return;
 		}
 
 		// 存在竞争时主动避让
 		Backoff(&backoffCount);
-		lastStatus = LockStatus_;
+		lastStatus = *pLockStatus;
 	}
 }
 
-void SRWLock::unlock_shared()
+void SRWLock_UnlockShared(size_t *pLockStatus)
 {
-	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(&LockStatus_, FLAG_SHARED | FLAG_LOCKED, 0);
+	SRWStatus lastStatus = Atomic::CompareExchange<size_t>(pLockStatus, FLAG_SHARED | FLAG_LOCKED, 0);
 	if (PLATFORM_LIKELY(lastStatus == (FLAG_SHARED | FLAG_LOCKED)))
 		return;
 
@@ -197,7 +197,7 @@ void SRWLock::unlock_shared()
 		else
 			newStatus = 0;
 
-		newStatus = Atomic::CompareExchange<size_t>(&LockStatus_, lastStatus.Value, newStatus.Value);
+		newStatus = Atomic::CompareExchange<size_t>(pLockStatus, lastStatus.Value, newStatus.Value);
 		if (newStatus == lastStatus)
 			return;
 
@@ -234,14 +234,45 @@ void SRWLock::unlock_shared()
 			isWake = true;
 		}
 
-		SRWStatus currStatus = Atomic::CompareExchange<size_t>(&LockStatus_, lastStatus.Value, newStatus.Value);
+		SRWStatus currStatus = Atomic::CompareExchange<size_t>(pLockStatus, lastStatus.Value, newStatus.Value);
 		if (currStatus == lastStatus)
 		{
 			if (isWake)
-				WakeUpLock(&LockStatus_, newStatus);
+				WakeUpLock(pLockStatus, newStatus);
 			return;
 		}
 
 		lastStatus = currStatus;
 	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+bool SRWLock::try_lock()
+{
+	return SRWLock_TryLock(&LockStatus_);
+}
+
+void SRWLock::lock()
+{
+	SRWLock_Lock(&LockStatus_);
+}
+
+void SRWLock::unlock()
+{
+	SRWLock_Unlock(&LockStatus_);
+}
+
+bool SRWLock::try_lock_shared()
+{
+	return SRWLock_TryLockShared(&LockStatus_);
+}
+
+void SRWLock::lock_shared()
+{
+	SRWLock_LockShared(&LockStatus_);
+}
+
+void SRWLock::unlock_shared()
+{
+	SRWLock_UnlockShared(&LockStatus_);
 }

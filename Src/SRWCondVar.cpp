@@ -5,24 +5,24 @@
 struct CVStackNode : SRWStackNode
 {
 	// 条件变量等待的上一个锁
-	SRWLock *LastLock;
+	size_t *LastLock;
 };
 
 //////////////////////////////////////////////////////////////////////////
-PLATFORM_NOINLINE static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, SRWLock *pSRWLock)
+PLATFORM_NOINLINE static bool QueueStackNodeToSRWLock(SRWStackNode *pStackNode, size_t *pLockStatus)
 {
-	SRWStatus lastStatus = *pSRWLock->native_handle();
+	SRWStatus lastStatus = *pLockStatus;
 	uint32_t backoffCount = 0;
 
 	while (lastStatus.Locked &&
 		((pStackNode->Flags & FLAG_LOCKED) || lastStatus.Spinning || !lastStatus.WaitNode()))
 	{
-		if (QueueStackNode<true>(pSRWLock->native_handle(), pStackNode, lastStatus))
+		if (QueueStackNode<true>(pLockStatus, pStackNode, lastStatus))
 			return true;
 
 		// 存在竞争时主动避让
 		Backoff(&backoffCount);
-		lastStatus = *pSRWLock->native_handle();
+		lastStatus = *pLockStatus;
 	}
 
 	return false;
@@ -90,7 +90,7 @@ PLATFORM_NOINLINE static void DoWakeCondVariable(size_t *pCondStatus, SRWStatus 
 		SRWStackNode *pBack = pCurrNotify->Back;
 		if (!Atomic::FetchBitClear(&pCurrNotify->Flags, BIT_SPINNING))
 		{
-			SRWLock *pLastLock = static_cast<CVStackNode*>(pCurrNotify)->LastLock;
+			size_t *pLastLock = static_cast<CVStackNode*>(pCurrNotify)->LastLock;
 			if (!pLastLock ||
 				!QueueStackNodeToSRWLock(pCurrNotify, pLastLock))
 			{
@@ -225,14 +225,14 @@ PLATFORM_NOINLINE static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWai
 	return result;
 }
 
-static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t timeOut, bool isShared)
+bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut, bool isShared)
 {
 	SRWStatus newStatus;
 	alignas(16) CVStackNode stackNode{};
 
 	SRWStatus lastStatus = *pCondStatus;
 	stackNode.Next = nullptr;
-	stackNode.LastLock = pSRWLock;
+	stackNode.LastLock = pLockStatus;
 
 	if (isShared)
 		stackNode.Flags = FLAG_SPINNING;
@@ -260,9 +260,9 @@ static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 	}
 
 	if (isShared)
-		pSRWLock->unlock_shared();
+		SRWLock_UnlockShared(pLockStatus);
 	else
-		pSRWLock->unlock();
+		SRWLock_Unlock(pLockStatus);
 
 	if (lastStatus.MultiShared != newStatus.MultiShared)
 		OptimizeWaitList(pCondStatus, newStatus);
@@ -295,14 +295,14 @@ static bool SleepCondVariable(size_t *pCondStatus, SRWLock *pSRWLock, uint64_t t
 	}
 
 	if (isShared)
-		pSRWLock->lock_shared();
+		SRWLock_LockShared(pLockStatus);
 	else
-		pSRWLock->lock();
+		SRWLock_Lock(pLockStatus);
 
 	return isTimeOut;
 }
 
-static void WakeCondVariable(size_t *pCondStatus)
+void SRWCondVar_NotifyOne(size_t *pCondStatus)
 {
 	SRWStatus lastStatus = *pCondStatus;
 
@@ -334,7 +334,7 @@ static void WakeCondVariable(size_t *pCondStatus)
 	}
 }
 
-static void WakeAllCondVariable(size_t *pCondStatus)
+void SRWCondVar_NotifyAll(size_t *pCondStatus)
 {
 	SRWStatus lastStatus = *pCondStatus;
 
@@ -375,15 +375,15 @@ static void WakeAllCondVariable(size_t *pCondStatus)
 //////////////////////////////////////////////////////////////////////////
 void SRWCondVar::notify_one()
 {
-	WakeCondVariable(&CondStatus_);
+	SRWCondVar_NotifyOne(&CondStatus_);
 }
 
 void SRWCondVar::notify_all()
 {
-	WakeAllCondVariable(&CondStatus_);
+	SRWCondVar_NotifyAll(&CondStatus_);
 }
 
 bool SRWCondVar::wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut, bool isShared)
 {
-	return SleepCondVariable(&CondStatus_, lock.mutex(), timeOut, isShared);
+	return SRWCondVar_Wait(&CondStatus_, lock.mutex()->native_handle(), timeOut, isShared);
 }

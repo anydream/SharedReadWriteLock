@@ -3,6 +3,11 @@
 #include "SRWLock.hpp"
 
 //////////////////////////////////////////////////////////////////////////
+bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut, bool isShared);
+void SRWCondVar_NotifyOne(size_t *pCondStatus);
+void SRWCondVar_NotifyAll(size_t *pCondStatus);
+
+//////////////////////////////////////////////////////////////////////////
 class SRWCondVar
 {
 public:
