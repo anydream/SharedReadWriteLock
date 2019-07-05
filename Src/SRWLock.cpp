@@ -1,5 +1,6 @@
 ﻿#include "SRWLock.hpp"
 #include "SRWInternals.hpp"
+#include <thread>
 
 #if defined(PLATFORM_GNUC_LIKE)
 #  include <cpuid.h>
@@ -7,9 +8,12 @@
 
 //////////////////////////////////////////////////////////////////////////
 static uint32_t g_CyclesPerYield = 10;
+static uint32_t g_ProcessorThreads = 1;
 
 void SRWLock_Init()
 {
+	g_ProcessorThreads = std::thread::hardware_concurrency();
+
 #if defined(PLATFORM_ARCH_X86)
 #  if defined(PLATFORM_GNUC_LIKE)
 	uint32_t cpuInfo[4];
@@ -47,7 +51,10 @@ PLATFORM_NOINLINE void Backoff(uint32_t *pCount)
 	}
 	else
 	{
-		// TODO: 单核心直接返回
+		// 单核心直接返回
+		if (g_ProcessorThreads == 1)
+			return;
+
 		// 设置初始次数
 		count = 64;
 	}
@@ -63,6 +70,10 @@ PLATFORM_NOINLINE void Backoff(uint32_t *pCount)
 
 void Spinning(SRWStackNode &stackNode)
 {
+	// 单核心直接返回
+	if (g_ProcessorThreads == 1)
+		return;
+
 #pragma nounroll
 	for (uint32_t spinCount = 8820 / g_CyclesPerYield; spinCount; --spinCount)
 	{

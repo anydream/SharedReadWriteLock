@@ -489,7 +489,7 @@ struct AvgCounter
 template <class TCondVar, class TLock, class TGuard, class TSleep>
 PLATFORM_NOINLINE static void TestCondVarSwitch(const char *name, TSleep funcSleep)
 {
-	const uint32_t threadCount = std::thread::hardware_concurrency();
+	const uint32_t threadCount = 4;
 
 	struct Context
 	{
@@ -593,7 +593,7 @@ PLATFORM_NOINLINE static void TestCondVarSwitch(const char *name, TSleep funcSle
 template <class TCondVar, class TLock, class TGuard, class TSleep>
 PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, TSleep funcSleep)
 {
-	const uint32_t threadCount = std::thread::hardware_concurrency();
+	const uint32_t threadCount = 4;
 
 	struct Context
 	{
@@ -706,6 +706,9 @@ PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, TSleep funcSl
 //////////////////////////////////////////////////////////////////////////
 int main()
 {
+	uint32_t thds = std::thread::hardware_concurrency();
+	printf("ProcessorThreads: %u\n", thds);
+
 	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
 	{
 	});
