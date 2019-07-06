@@ -481,7 +481,7 @@ struct AvgCounter
 
 	void Print() const
 	{
-		printf("Min:%gus, Max:%gus, Avg:%gus, Cnt:%llu",
+		printf("Min:%gus, Max:%gus, Avg:%gus, Cnt:%zu",
 		       Min_, Max_, Total_ / Count_, Count_);
 	}
 };
@@ -709,17 +709,17 @@ int main()
 	uint32_t thds = std::thread::hardware_concurrency();
 	printf("ProcessorThreads: %u\n", thds);
 
-	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
-	{
-	});
 	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var", []()
 	{
 	});
-	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(0)", []()
+	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar", []()
+	{
+	});
+	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(0)", []()
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(0));
 	});
-	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var.sleep(0)", []()
+	TestCondVarSwitch<SRWCondVar, SRWLock, LockGuard<SRWLock>>("SRWCondVar.sleep(0)", []()
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(0));
 	});

@@ -2,7 +2,7 @@
 #include "SRWInternals.hpp"
 #include <thread>
 
-#if defined(PLATFORM_GNUC_LIKE)
+#if defined(PLATFORM_ARCH_X86) && defined(PLATFORM_GNUC_LIKE)
 #  include <cpuid.h>
 #endif
 
@@ -75,7 +75,7 @@ void Spinning(SRWStackNode &stackNode)
 		return;
 
 #pragma nounroll
-	for (uint32_t spinCount = 8820 / g_CyclesPerYield; spinCount; --spinCount)
+	for (uint32_t spinCount = 9520 / g_CyclesPerYield; spinCount; --spinCount)
 	{
 		if (!(static_cast<volatile const uint32_t&>(stackNode.Flags) & FLAG_SPINNING))
 			break;
