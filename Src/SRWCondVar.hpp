@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "SRWLock.hpp"
+#include "LockUtils.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut, bool isShared);
@@ -18,18 +19,31 @@ public:
 	void notify_one();
 	void notify_all();
 
-	bool wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut, bool isShared = false);
+	bool wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut);
+	bool wait_for(SharedLockGuard<SRWLock> &lock, uint64_t timeOut);
 
-	void wait(LockGuard<SRWLock> &lock, bool isShared = false)
+	void wait(LockGuard<SRWLock> &lock)
 	{
-		wait_for(lock, -1, isShared);
+		wait_for(lock, -1);
+	}
+
+	void wait(SharedLockGuard<SRWLock> &lock)
+	{
+		wait_for(lock, -1);
 	}
 
 	template <class Pred>
-	void wait(LockGuard<SRWLock> &lock, Pred pred, bool isShared = false)
+	void wait(LockGuard<SRWLock> &lock, Pred pred)
 	{
 		while (!pred())
-			wait_for(lock, -1, isShared);
+			wait_for(lock, -1);
+	}
+
+	template <class Pred>
+	void wait(SharedLockGuard<SRWLock> &lock, Pred pred)
+	{
+		while (!pred())
+			wait_for(lock, -1);
 	}
 
 private:

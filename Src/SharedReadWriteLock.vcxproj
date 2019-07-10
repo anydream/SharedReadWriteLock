@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="Atomic.hpp" />
     <ClInclude Include="DebugLog.hpp" />
+    <ClInclude Include="LockUtils.hpp" />
     <ClInclude Include="Predefines.hpp" />
     <ClInclude Include="SRWCondVar.hpp" />
     <ClInclude Include="SRWInternals.hpp" />

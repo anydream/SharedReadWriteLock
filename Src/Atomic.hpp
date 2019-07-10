@@ -256,7 +256,7 @@ namespace Atomic
 	{
 		return _InterlockedExchange64(reinterpret_cast<volatile long long*>(pDest), val);
 	}
-#endif
+#  endif
 
 	template <class T>
 	T IncrementFetch(T *pDest) = delete;

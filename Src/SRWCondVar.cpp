@@ -377,7 +377,12 @@ void SRWCondVar::notify_all()
 	SRWCondVar_NotifyAll(&CondStatus_);
 }
 
-bool SRWCondVar::wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut, bool isShared)
+bool SRWCondVar::wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut)
 {
-	return SRWCondVar_Wait(&CondStatus_, lock.mutex()->native_handle(), timeOut, isShared);
+	return SRWCondVar_Wait(&CondStatus_, lock.mutex()->native_handle(), timeOut, false);
+}
+
+bool SRWCondVar::wait_for(SharedLockGuard<SRWLock> &lock, uint64_t timeOut)
+{
+	return SRWCondVar_Wait(&CondStatus_, lock.mutex()->native_handle(), timeOut, true);
 }

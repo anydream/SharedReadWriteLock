@@ -378,14 +378,14 @@ PLATFORM_NOINLINE static void SimpleTestCondVar()
 	}
 
 	{
-		LockGuard<SRWLock> lk(lock, true);
+		SharedLockGuard<SRWLock> lk(lock);
 		condVar.notify_one();
 		condVar.notify_all();
 	}
 	{
-		LockGuard<SRWLock> lk(lock, true);
+		SharedLockGuard<SRWLock> lk(lock);
 		auto stt = GetTickMicrosec();
-		bool isTimeOut = condVar.wait_for(lk, 500000, true);
+		bool isTimeOut = condVar.wait_for(lk, 500000);
 		auto dlt = GetTickMicrosec() - stt;
 		Assert(dlt > 400000);
 		Assert(isTimeOut);
