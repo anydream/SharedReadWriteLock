@@ -75,7 +75,7 @@ void Spinning(SRWStackNode &stackNode)
 		return;
 
 #pragma nounroll
-	for (uint32_t spinCount = 9520 / g_CyclesPerYield; spinCount; --spinCount)
+	for (uint32_t spinCount = 10500 / g_CyclesPerYield; spinCount; --spinCount)
 	{
 		if (!(static_cast<volatile const uint32_t&>(stackNode.Flags) & FLAG_SPINNING))
 			break;
