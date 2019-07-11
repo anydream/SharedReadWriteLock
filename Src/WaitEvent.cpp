@@ -60,6 +60,7 @@ static struct KeyedEvent
 bool WaitEvent::WaitMicrosec(uint64_t microsecs)
 {
 #if defined(PLATFORM_IS_WINDOWS)
+	Assert((size_t)this % 4 == 0);
 	if (microsecs == -1)
 	{
 		NtWaitForKeyedEvent(g_KeyedEvent.Handle_, this, false, nullptr);
