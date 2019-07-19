@@ -283,7 +283,7 @@ PLATFORM_NOINLINE static void TestLockPerf()
 {
 	const uint32_t loops =
 #if defined(PLATFORM_IS_DEBUG) || defined(PLATFORM_IS_IPHONE)
-		1000000;
+			1000000;
 #else
 		10000000;
 #endif
@@ -704,10 +704,61 @@ PLATFORM_NOINLINE static void TestThunderingHerd(const char *name, TSleep funcSl
 }
 
 //////////////////////////////////////////////////////////////////////////
+PLATFORM_NOINLINE static void TestSRWRecLock()
+{
+	SRWRecLock rl;
+
+	rl.lock();
+	rl.lock();
+	Assert(rl.try_lock());
+	Assert(rl.try_lock());
+
+	rl.unlock();
+	rl.unlock();
+	rl.unlock();
+	rl.unlock();
+
+	{
+		Assert(rl.try_lock());
+
+		bool result = false;
+		std::thread thd([&rl, &result]()
+		{
+			rl.lock();
+			rl.unlock();
+			result = true;
+		});
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		Assert(!result);
+		rl.unlock();
+
+		thd.join();
+		Assert(result);
+	}
+	{
+		Assert(rl.try_lock());
+
+		std::thread thd([&rl]()
+		{
+			Assert(!rl.try_lock());
+		});
+
+		thd.join();
+
+		rl.unlock();
+	}
+
+	puts("TestSRWRecLock OK");
+}
+
+//////////////////////////////////////////////////////////////////////////
 int main()
 {
 	uint32_t thds = std::thread::hardware_concurrency();
 	printf("ProcessorThreads: %u\n", thds);
+
+	TestSRWRecLock();
 
 	TestCondVarSwitch<std::condition_variable, std::mutex, std::unique_lock<std::mutex>>("std::cond_var", []()
 	{

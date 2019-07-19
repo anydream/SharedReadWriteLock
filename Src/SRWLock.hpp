@@ -36,3 +36,17 @@ public:
 private:
 	size_t LockStatus_ = 0;
 };
+
+//////////////////////////////////////////////////////////////////////////
+class SRWRecLock
+{
+public:
+	void lock();
+	bool try_lock();
+	void unlock();
+
+private:
+	SRWLock Lock_;
+	uint32_t ThreadID_ = -1;
+	uint32_t RecCount_ = 0;
+};

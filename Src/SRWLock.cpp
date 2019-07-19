@@ -352,3 +352,75 @@ void SRWLock::unlock_shared()
 {
 	SRWLock_UnlockShared(&LockStatus_);
 }
+
+//////////////////////////////////////////////////////////////////////////
+#if defined(PLATFORM_IS_WINDOWS)
+#  include <windows.h>
+#elif defined(PLATFORM_IS_UNIX) || defined(PLATFORM_IS_APPLE)
+#  include <sched.h>
+#  include <unistd.h>
+#  define PLATFORM_IS_UNIX_OR_APPLE
+
+#  if defined(PLATFORM_IS_APPLE)
+#    include <pthread.h>
+#  else
+#    include <sys/syscall.h>
+#  endif
+#endif
+
+static uint32_t GetThreadIDImpl()
+{
+#if defined(PLATFORM_IS_WINDOWS)
+	return static_cast<uint32_t>(GetCurrentThreadId());
+#elif defined(PLATFORM_IS_UNIX)
+	return static_cast<uint32_t>(syscall(SYS_gettid));
+#elif defined(PLATFORM_IS_APPLE)
+	uint64_t tid = 0;
+	pthread_threadid_np(nullptr, &tid);
+	return static_cast<uint32_t>(tid);
+#endif
+}
+
+//////////////////////////////////////////////////////////////////////////
+void SRWRecLock::lock()
+{
+	uint32_t currTID = GetThreadIDImpl();
+
+	if (ThreadID_ != currTID)
+		Lock_.lock();
+
+	if (++RecCount_ == 1)
+		ThreadID_ = currTID;
+}
+
+bool SRWRecLock::try_lock()
+{
+	uint32_t currTID = GetThreadIDImpl();
+
+	bool isAcquired;
+	if (ThreadID_ != currTID)
+		isAcquired = Lock_.try_lock();
+	else
+		isAcquired = true;
+
+	if (isAcquired)
+	{
+		if (++RecCount_ == 1)
+			ThreadID_ = currTID;
+	}
+
+	return isAcquired;
+}
+
+void SRWRecLock::unlock()
+{
+	AssertDebug(
+		RecCount_ >= 1 &&
+		ThreadID_ == GetThreadIDImpl());
+
+	if (--RecCount_ == 0)
+	{
+		ThreadID_ = -1;
+		Lock_.unlock();
+	}
+}
