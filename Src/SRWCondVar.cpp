@@ -225,7 +225,7 @@ PLATFORM_NOINLINE static bool WakeSingle(size_t *pCondStatus, SRWStackNode *pWai
 	return result;
 }
 
-bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut, bool isShared)
+PLATFORM_NOINLINE bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut, bool isShared)
 {
 	SRWStatus newStatus;
 	alignas(16) CVStackNode stackNode{};
@@ -296,7 +296,7 @@ bool SRWCondVar_Wait(size_t *pCondStatus, size_t *pLockStatus, uint64_t timeOut,
 	return isTimeOut;
 }
 
-void SRWCondVar_NotifyOne(size_t *pCondStatus)
+PLATFORM_NOINLINE void SRWCondVar_NotifyOne(size_t *pCondStatus)
 {
 	SRWStatus lastStatus = *pCondStatus;
 
@@ -328,7 +328,7 @@ void SRWCondVar_NotifyOne(size_t *pCondStatus)
 	}
 }
 
-void SRWCondVar_NotifyAll(size_t *pCondStatus)
+PLATFORM_NOINLINE void SRWCondVar_NotifyAll(size_t *pCondStatus)
 {
 	SRWStatus lastStatus = *pCondStatus;
 

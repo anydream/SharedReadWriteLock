@@ -16,9 +16,11 @@ public:
 	SRWCondVar(const SRWCondVar &) = delete;
 	SRWCondVar(SRWCondVar &&) = delete;
 
+	// 唤醒. 如果没有加锁则可能无法唤醒
 	void notify_one();
 	void notify_all();
 
+	// 等待唤醒. 微秒超时
 	bool wait_for(LockGuard<SRWLock> &lock, uint64_t timeOut);
 	bool wait_for(SharedLockGuard<SRWLock> &lock, uint64_t timeOut);
 

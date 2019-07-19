@@ -51,6 +51,7 @@ static struct KeyedEvent
 
 #elif defined(PLATFORM_IS_LINUX)
 #  include <unistd.h>
+#  include <errno.h>
 #  include <sys/time.h>
 #  include <sys/syscall.h>
 #  include <linux/futex.h>
