@@ -73,17 +73,3 @@ uint64_t GetTickMillisec()
 {
 	return GetTickMicrosec() / 1000;
 }
-
-//////////////////////////////////////////////////////////////////////////
-uint32_t RandomValue()
-{
-#if defined(PLATFORM_ARCH_X86)
-#  if defined(PLATFORM_MSVC_LIKE)
-	return static_cast<uint32_t>(__rdtsc());
-#  else
-	return static_cast<uint32_t>(__builtin_ia32_rdtsc());
-#  endif
-#else
-	return rand();
-#endif
-}

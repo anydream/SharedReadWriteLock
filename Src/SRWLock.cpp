@@ -41,6 +41,19 @@ static struct Init
 } g_Init;
 
 //////////////////////////////////////////////////////////////////////////
+static uint32_t RandomValue()
+{
+#if defined(PLATFORM_ARCH_X86)
+#  if defined(PLATFORM_MSVC_LIKE)
+	return static_cast<uint32_t>(__rdtsc());
+#  else
+	return static_cast<uint32_t>(__builtin_ia32_rdtsc());
+#  endif
+#else
+	return rand();
+#endif
+}
+
 PLATFORM_NOINLINE void Backoff(uint32_t *pCount)
 {
 	uint32_t count = *pCount;

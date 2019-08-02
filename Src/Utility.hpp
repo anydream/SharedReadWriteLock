@@ -6,4 +6,3 @@
 uint64_t GetTickNanosec();
 uint64_t GetTickMicrosec();
 uint64_t GetTickMillisec();
-uint32_t RandomValue();
